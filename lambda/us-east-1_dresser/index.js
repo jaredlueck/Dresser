@@ -2,7 +2,6 @@ const Alexa = require('alexa-sdk');
 const AWS = require('aws-sdk');
 const uuidv4 = require('uuid/v4');
 const request = require('request');
-const {promisify} = require('es6-promisify');
 const util = require('util');
 const docClient = new AWS.DynamoDB.DocumentClient();
 
@@ -11,11 +10,14 @@ const dbScan = util.promisify(docClient.scan.bind(docClient));
 const tableName = 'ClothingTable';
 const weatherURL = 'api.openweathermap.org/data/2.5/weather?q=';
 
+const instructions = `Welcome to Dresser.<break time="0.5s"/> You can say <break time="0.5s"/> random outfit <break time="0.5s"/> to get a random 
+outfit <break time="0.5s"/> or <break time="0.5s"/> store in dresser <break time="0.5s"/> to store a new article of clothing in your dresser. What would you like to do?`
+
 
 const handlers = {
 
     'LaunchRequest' : function(){
-        this.emit(":tell", "Hello")
+        this.emit(':ask', instructions);
     },
     'addClothingIntent' : function(){
         
@@ -90,7 +92,9 @@ const handlers = {
             console.log(body);
             var res = JSON.parse(body);
             console.log(res.main.temp);
-            var temperatureCelsius = res.main.temp - 273.15;
+            
+            var temperatureCelsius = Math.round((res.main.temp - 273.15) * 100) / 100
+            
             console.log(temperatureCelsius); 
             var isCold = temperatureCelsius<10 ? true : false;
             
@@ -165,7 +169,7 @@ const handlers = {
 
                 
 
-                var outputSpeech = `Your outfit is: `
+                var outputSpeech = `The temperature is ${temperatureCelsius} degrees. <break time="1s"/>Your outfit is: `
                 console.log(selectedClothing);
                 for(var i = 0 ; i<selectedClothing.length ; i++){
                     outputSpeech += `${selectedClothing[i].color} ${selectedClothing[i].brand} ${selectedClothing[i].clothingType}<break time="1s"/> `;
@@ -179,18 +183,14 @@ const handlers = {
             }))
         })
     },
-    'AMAZON.FallbackIntent' : function(){
-
-    },
     'AMAZON.HelpIntent' : function(){
-
+        const speechOutput = instructions;
+        const reprompt = instructions;
+        this.emit(':ask', speechOutput, reprompt);
     },
     'AMAZON.StopIntent' : function(){
-
+        this.emit(":tell", "GoodBye")
     },
-    'AMAZON.NavigateHomeIntent' : function(){
-
-    }
 }
 
 //function to select random bottoms.
