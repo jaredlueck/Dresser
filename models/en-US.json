@@ -1,0 +1,131 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "dresser",
+      "intents": [
+        {
+          "name": "AMAZON.FallbackIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.CancelIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.HelpIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.StopIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.NavigateHomeIntent",
+          "samples": []
+        },
+        {
+          "name": "addClothingIntent",
+          "slots": [
+            {
+              "name": "ClothingBrand",
+              "type": "ClothingBrand"
+            },
+            {
+              "name": "ClothingType",
+              "type": "ClothingType"
+            }
+          ],
+          "samples": [
+            "add clothing"
+          ]
+        }
+      ],
+      "types": [
+        {
+          "values": [
+            {
+              "name": {
+                "value": "Stussy"
+              }
+            },
+            {
+              "name": {
+                "value": "American Eagle"
+              }
+            },
+            {
+              "name": {
+                "value": "Old Navy"
+              }
+            }
+          ],
+          "name": "ClothingBrand"
+        },
+        {
+          "values": [
+            {
+              "name": {
+                "value": "Pants"
+              }
+            },
+            {
+              "name": {
+                "value": "Shirt"
+              }
+            }
+          ],
+          "name": "ClothingType"
+        }
+      ]
+    },
+    "dialog": {
+      "intents": [
+        {
+          "name": "addClothingIntent",
+          "confirmationRequired": false,
+          "prompts": {},
+          "slots": [
+            {
+              "name": "ClothingBrand",
+              "type": "ClothingBrand",
+              "elicitationRequired": true,
+              "confirmationRequired": false,
+              "prompts": {
+                "elicitation": "Elicit.Slot.976770406171.1205062874974"
+              }
+            },
+            {
+              "name": "ClothingType",
+              "type": "ClothingType",
+              "elicitationRequired": true,
+              "confirmationRequired": false,
+              "prompts": {
+                "elicitation": "Elicit.Slot.976770406171.77395939545"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "prompts": [
+      {
+        "id": "Elicit.Slot.976770406171.1205062874974",
+        "variations": [
+          {
+            "type": "PlainText",
+            "value": "What is the brand of the piece of clothing?"
+          }
+        ]
+      },
+      {
+        "id": "Elicit.Slot.976770406171.77395939545",
+        "variations": [
+          {
+            "type": "PlainText",
+            "value": "What type of clothing is this?"
+          }
+        ]
+      }
+    ]
+  }
+}
