@@ -17,7 +17,20 @@ outfit <break time="0.5s"/> or <break time="0.5s"/> store in dresser <break time
 const handlers = {
 
     'LaunchRequest' : function(){
-        this.emit(':ask', instructions);
+        // this.response.speak('Please grant skill permissions to access your device address.'); 
+        // const permissions = ['read::alexa:device:all:address']; 
+        // this.response.askForPermissionsConsentCard(permissions); 
+        // this.emit(':responseReady');
+        this.emit(":ask", instructions);
+    },
+    'Unhandled' : function(){
+        console.log("UNHANDLED")
+        this.emit(":ask", instructions);
+
+    },
+    'FallbackIntent' : function(){
+        console.log("FALLBACK")
+        this.emit(":ask", "Say again?")
     },
     'addClothingIntent' : function(){
         
@@ -87,8 +100,80 @@ const handlers = {
     },
     'getOutfitIntent' : function(){
 
-        request('http://api.openweathermap.org/data/2.5/weather?q=London,uk&APPID=07dcfee4c868ec91c360a79ab03370ad', (error, response, body) => {
+        var deviceId = this.event.context.System.device.deviceId;
+        var accessToken = this.event.context.System.apiAccessToken;
+        var endpoint = `/v1/devices/${deviceId}/settings/address`;
+        var APIendpoint = this.event.context.System.apiEndpoint;
 
+        const das = new Alexa.services.DeviceAddressService();
+
+        das.getFullAddress(deviceId, APIendpoint, accessToken)
+            .then((data) => {
+                console.log(data)
+                console.log(data.countryCode);
+                if(data.country === null || data.countryCode === null){
+                    getOutfit.call(this, "Ottawa", "CAN");   
+
+                }else{
+                    console.log("FOUND ADDRESS")
+                    getOutfit.call(this, data.city, data.countryCode);
+                }
+                   
+            })
+            .catch((error) => {
+                console.log(error);
+                getOutfit.call(this, "Ottawa", "CAN");   
+            })
+
+
+    },
+    'AMAZON.HelpIntent' : function(){
+        const speechOutput = instructions;
+        const reprompt = instructions;
+        this.emit(':ask', speechOutput, reprompt);
+    },
+    'AMAZON.StopIntent' : function(){
+        this.emit(":tell", "GoodBye")
+    },
+}
+
+//function to select random bottoms.
+function pickBottom(shorts, pants, clothing, isCold){
+    console.log(clothing);
+    //If it is not cold, select shorts if there are any otherwise select pants
+    if(!isCold){
+        if(shorts.length > 0){
+            clothing.push(pickRandom(shorts));
+        }else{
+            if(pants.length > 0){
+                clothing.push(pickRandom(pants));
+            }else{
+                console.log("No bottoms")
+            }
+        }
+    //If it is cold select pants
+    }else{
+        if(pants.length > 0){
+            clothing.push(pickRandom(pants));
+        }else{
+            console.log("No pants")
+        }
+    }
+}
+
+function pickRandom(clothesArray){
+    console.log(clothesArray.length);
+    var randIndex = Math.floor(Math.random() * (clothesArray.length));
+    console.log(randIndex);
+    return clothesArray[randIndex];
+}
+
+function getOutfit(city, country){
+    request(`http://api.openweathermap.org/data/2.5/weather?q=${city}&APPID=07dcfee4c868ec91c360a79ab03370ad`, (error, response, body) => {
+
+            if(error){
+                console.log(error);
+            }
             console.log(body);
             var res = JSON.parse(body);
             console.log(res.main.temp);
@@ -97,6 +182,7 @@ const handlers = {
             
             console.log(temperatureCelsius); 
             var isCold = temperatureCelsius<10 ? true : false;
+
             
             
             var getRandomShirtParams = {
@@ -168,8 +254,8 @@ const handlers = {
                 }
 
                 
-
-                var outputSpeech = `The temperature is ${temperatureCelsius} degrees. <break time="1s"/>Your outfit is: `
+                
+                var outputSpeech = `The temperature is ${temperatureCelsius} degrees in ${city}. <break time="1s"/>Your outfit is: `
                 console.log(selectedClothing);
                 for(var i = 0 ; i<selectedClothing.length ; i++){
                     outputSpeech += `${selectedClothing[i].color} ${selectedClothing[i].brand} ${selectedClothing[i].clothingType}<break time="1s"/> `;
@@ -177,51 +263,9 @@ const handlers = {
                 
                 console.log(outputSpeech);
                 this.emit(':tell', outputSpeech);
-
-
-
             }))
         })
-    },
-    'AMAZON.HelpIntent' : function(){
-        const speechOutput = instructions;
-        const reprompt = instructions;
-        this.emit(':ask', speechOutput, reprompt);
-    },
-    'AMAZON.StopIntent' : function(){
-        this.emit(":tell", "GoodBye")
-    },
-}
-
-//function to select random bottoms.
-function pickBottom(shorts, pants, clothing, isCold){
-    console.log(clothing);
-    //If it is not cold, select shorts if there are any otherwise select pants
-    if(!isCold){
-        if(shorts.length > 0){
-            clothing.push(pickRandom(shorts));
-        }else{
-            if(pants.length > 0){
-                clothing.push(pickRandom(pants));
-            }else{
-                console.log("No bottoms")
-            }
-        }
-    //If it is cold select pants
-    }else{
-        if(pants.length > 0){
-            clothing.push(pickRandom(pants));
-        }else{
-            console.log("No pants")
-        }
-    }
-}
-
-function pickRandom(clothesArray){
-    console.log(clothesArray.length);
-    var randIndex = Math.floor(Math.random() * (clothesArray.length));
-    console.log(randIndex);
-    return clothesArray[randIndex];
+                
 }
 
 
