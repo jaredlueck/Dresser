@@ -23,7 +23,7 @@
             "codeUri": "lambda/us-east-1_dresser",
             "functionName": "dresser",
             "handler": "index.handler",
-            "revisionId": "d0303c65-6e83-48aa-9030-0fb2747e6efc",
+            "revisionId": "19686345-3069-427f-8b34-b1bc3ed26d47",
             "runtime": "nodejs8.10"
           }
         ]

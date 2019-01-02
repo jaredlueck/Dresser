@@ -5,10 +5,12 @@ const request = require('request');
 const util = require('util');
 const docClient = new AWS.DynamoDB.DocumentClient();
 
-const dbScan = util.promisify(docClient.scan.bind(docClient));
 
-const tableName = 'ClothingTable';
-const weatherURL = 'api.openweathermap.org/data/2.5/weather?q=';
+const dbScan = util.promisify(docClient.scan.bind(docClient));
+const dbDelete = util.promisify(docClient.delete.bind(docClient));
+
+
+const tableName = 'ClothingTable2';
 
 const instructions = `Welcome to Dresser.<break time="0.5s"/> You can say <break time="0.5s"/> random outfit <break time="0.5s"/> to get a random 
 outfit <break time="0.5s"/> or <break time="0.5s"/> store in dresser <break time="0.5s"/> to store a new article of clothing in your dresser. What would you like to do?`
@@ -17,16 +19,12 @@ outfit <break time="0.5s"/> or <break time="0.5s"/> store in dresser <break time
 const handlers = {
 
     'LaunchRequest' : function(){
-        // this.response.speak('Please grant skill permissions to access your device address.'); 
-        // const permissions = ['read::alexa:device:all:address']; 
-        // this.response.askForPermissionsConsentCard(permissions); 
-        // this.emit(':responseReady');
         this.emit(":ask", instructions);
     },
-    'Unhandled' : function(){
-        console.log("UNHANDLED")
-        this.emit(":ask", instructions);
-
+    'Unhandled': function () {
+        this.attributes.speechOutput = this.t('HELP_MESSAGE');
+        this.attributes.repromptSpeech = this.t('HELP_REPROMPT');
+        return this.emit(':ask', this.attributes.speechOutput, this.attributes.repromptSpeech);
     },
     'FallbackIntent' : function(){
         console.log("FALLBACK")
@@ -38,6 +36,7 @@ const handlers = {
             return this.emit(":delegate");
         }else{
             const {slots} = this.event.request.intent; 
+            const { userId } = this.event.session.user;
             const color = slots.ClothingColor.value;
             const brand = slots.ClothingBrand.value;
             const type = slots.ClothingType.value;
@@ -45,17 +44,18 @@ const handlers = {
             var params = {
                 TableName: tableName,
                 Item : {
-                    'userID': uuidv4(),//Generate random primary key for database
+                    'itemId': uuidv4(),//Generate random primary key for database
                     'color': color,
                     'clothingType': type,
-                    'brand': brand
+                    'brand': brand,
+                    'userId': userId
                 }
             }
 
             var checkIfExistsParams = {
                 TableName: tableName,
-                FilterExpression : 'clothingType = :type',
-                ExpressionAttributeValues : {':type' : type}
+                FilterExpression : 'clothingType = :type AND userId = :Id AND userId = :Id',
+                ExpressionAttributeValues : {':type' : type, ":Id" : userId}
             }
 
             //Retrieve all objects of this type
@@ -65,9 +65,10 @@ const handlers = {
                      console.log(data)
                      //If thereare none of this type of clothing item in DB, then this one can be stored
                      if(data.Count == 0){
-                         docClient.put(params, function(err, data) {
+                         docClient.put(params, (err, data) => {
                          if (err) console.log(err);
                          else console.log(data);
+                         this.emit(':tell', 'Clothing Item added to your dresser.')
                          });
                     }else{
                         //Check if a clothing item of this type with the same brand and color already exists in the DB
@@ -112,6 +113,7 @@ const handlers = {
                 console.log(data)
                 console.log(data.countryCode);
                 if(data.country === null || data.countryCode === null){
+                    console.log("ERROR IN LOCATION VALUES - USING DEFAULT")
                     getOutfit.call(this, "Ottawa", "CAN");   
 
                 }else{
@@ -121,6 +123,7 @@ const handlers = {
                    
             })
             .catch((error) => {
+                console.log("ERROR IN API CALL - USING DEFAULT")
                 console.log(error);
                 getOutfit.call(this, "Ottawa", "CAN");   
             })
@@ -135,6 +138,48 @@ const handlers = {
     'AMAZON.StopIntent' : function(){
         this.emit(":tell", "GoodBye")
     },
+    'emptyDresserIntent' : function(){
+        
+        const { userId } = this.event.session.user;
+
+        var params = {
+            TableName: tableName,
+            FilterExpression : 'userId = :Id',
+            ExpressionAttributeValues : { ':Id' : userId}
+        }
+
+        dbScan(params)
+        .then((data) => {
+            console.log(data);
+            data.Items.forEach((item) => {
+                
+                var deleteParams = {
+                    Key : {
+                        itemId : item.itemId,
+                        clothingType : item.clothingType
+                        
+                        
+                    },
+                    TableName : tableName,
+                }
+
+                dbDelete(deleteParams)
+                .catch((err) => {
+                    console.log(err);
+                })
+                
+            })
+        })
+        .then(() => {
+            this.emit(":tell", "Your dresser is now empty")
+        })
+        .catch((err) => {
+            console.log(err);
+        })
+
+        
+        
+    }
 }
 
 //function to select random bottoms.
@@ -169,7 +214,9 @@ function pickRandom(clothesArray){
 }
 
 function getOutfit(city, country){
-    request(`http://api.openweathermap.org/data/2.5/weather?q=${city}&APPID=07dcfee4c868ec91c360a79ab03370ad`, (error, response, body) => {
+    request(`http://api.openweathermap.org/data/2.5/weather?q=${city},${country}&APPID=07dcfee4c868ec91c360a79ab03370ad`, (error, response, body) => {
+            
+            const { userId } = this.event.session.user;
 
             if(error){
                 console.log(error);
@@ -187,32 +234,32 @@ function getOutfit(city, country){
             
             var getRandomShirtParams = {
                 TableName: tableName,
-                FilterExpression : 'clothingType = :type',
-                ExpressionAttributeValues : {':type' : 'shirt'}
+                FilterExpression : 'clothingType = :type AND userId = :Id',
+                ExpressionAttributeValues : {':type' : 'shirt', ':Id' : userId}
             }
 
             var getRandomPantsParams = {
                 TableName: tableName,
-                FilterExpression : 'clothingType = :type',
-                ExpressionAttributeValues : {':type' : 'pants'}
+                FilterExpression : 'clothingType = :type AND userId = :Id',
+                ExpressionAttributeValues : {':type' : 'pants', ':Id' : userId}
             }
 
             var getRandomHatParams = {
                 TableName: tableName,
-                FilterExpression : 'clothingType = :type',
-                ExpressionAttributeValues : {':type' : 'hat'}
+                FilterExpression : 'clothingType = :type AND userId = :Id',
+                ExpressionAttributeValues : {':type' : 'hat', ':Id' : userId}
             }
 
             var getRandomSweaterParams = {
                 TableName: tableName,
-                FilterExpression : 'clothingType = :type',
-                ExpressionAttributeValues : {':type' : 'sweater'}
+                FilterExpression : 'clothingType = :type AND userId = :Id',
+                ExpressionAttributeValues : {':type' : 'sweater', ':Id' : userId}
             }
 
             var getRandomShortsParams = {
                 TableName: tableName,
-                FilterExpression : 'clothingType = :type',
-                ExpressionAttributeValues : {':type' : 'shorts'}
+                FilterExpression : 'clothingType = :type AND userId = :Id',
+                ExpressionAttributeValues : {':type' : 'shorts', ':Id' : userId}
             }
 
             Promise.all([dbScan(getRandomShirtParams), dbScan(getRandomPantsParams), dbScan(getRandomHatParams), dbScan(getRandomSweaterParams), dbScan(getRandomShortsParams)]).then((values => {
@@ -256,6 +303,7 @@ function getOutfit(city, country){
                 
                 
                 var outputSpeech = `The temperature is ${temperatureCelsius} degrees in ${city}. <break time="1s"/>Your outfit is: `
+                
                 console.log(selectedClothing);
                 for(var i = 0 ; i<selectedClothing.length ; i++){
                     outputSpeech += `${selectedClothing[i].color} ${selectedClothing[i].brand} ${selectedClothing[i].clothingType}<break time="1s"/> `;
@@ -267,8 +315,6 @@ function getOutfit(city, country){
         })
                 
 }
-
-
 
 exports.handler = function(event, context, callback){
     const alexa = Alexa.handler(event, context, callback);
