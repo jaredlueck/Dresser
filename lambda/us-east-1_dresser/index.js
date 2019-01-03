@@ -139,44 +139,48 @@ const handlers = {
         this.emit(":tell", "GoodBye")
     },
     'emptyDresserIntent' : function(){
+
+        if(this.event.request.dialogState != "COMPLETED"){
+            return this.emit(":delegate");
+        }else{
         
-        const { userId } = this.event.session.user;
+            const { userId } = this.event.session.user;
 
-        var params = {
-            TableName: tableName,
-            FilterExpression : 'userId = :Id',
-            ExpressionAttributeValues : { ':Id' : userId}
-        }
+            var params = {
+                TableName: tableName,
+                FilterExpression : 'userId = :Id',
+                ExpressionAttributeValues : { ':Id' : userId}
+            }
 
-        dbScan(params)
-        .then((data) => {
-            console.log(data);
-            data.Items.forEach((item) => {
-                
-                var deleteParams = {
-                    Key : {
-                        itemId : item.itemId,
-                        clothingType : item.clothingType
-                        
-                        
-                    },
-                    TableName : tableName,
-                }
+            dbScan(params)
+            .then((data) => {
+                console.log(data);
+                data.Items.forEach((item) => {
+                    
+                    var deleteParams = {
+                        Key : {
+                            itemId : item.itemId,
+                            clothingType : item.clothingType
+                            
+                            
+                        },
+                        TableName : tableName,
+                    }
 
-                dbDelete(deleteParams)
-                .catch((err) => {
-                    console.log(err);
+                    dbDelete(deleteParams)
+                    .catch((err) => {
+                        console.log(err);
+                    })
+                    
                 })
-                
             })
-        })
-        .then(() => {
-            this.emit(":tell", "Your dresser is now empty")
-        })
-        .catch((err) => {
-            console.log(err);
-        })
-
+            .then(() => {
+                this.emit(":tell", "Your dresser is now empty")
+            })
+            .catch((err) => {
+                console.log(err);
+            })
+        }
         
         
     }
@@ -313,7 +317,6 @@ function getOutfit(city, country){
                 this.emit(':tell', outputSpeech);
             }))
         })
-                
 }
 
 exports.handler = function(event, context, callback){
