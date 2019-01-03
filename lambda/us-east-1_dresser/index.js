@@ -9,7 +9,6 @@ const docClient = new AWS.DynamoDB.DocumentClient();
 const dbScan = util.promisify(docClient.scan.bind(docClient));
 const dbDelete = util.promisify(docClient.delete.bind(docClient));
 
-
 const tableName = 'ClothingTable2';
 
 const instructions = `Welcome to Dresser.<break time="0.5s"/> You can say <break time="0.5s"/> random outfit <break time="0.5s"/> to get a random 
@@ -89,7 +88,6 @@ const handlers = {
                             docClient.put(params, (err, data) => {
                                 if (err) console.log(err);
                                 else{ 
-                                    console.log("ADDED!!!!!!!!!!!!!!!!!!!!!!!!");
                                     this.emit(":tell", "Clothing item added to your dresser")
                                 };
                             });
@@ -103,15 +101,13 @@ const handlers = {
 
         var deviceId = this.event.context.System.device.deviceId;
         var accessToken = this.event.context.System.apiAccessToken;
-        var endpoint = `/v1/devices/${deviceId}/settings/address`;
         var APIendpoint = this.event.context.System.apiEndpoint;
 
         const das = new Alexa.services.DeviceAddressService();
 
         das.getFullAddress(deviceId, APIendpoint, accessToken)
             .then((data) => {
-                console.log(data)
-                console.log(data.countryCode);
+                
                 if(data.country === null || data.countryCode === null){
                     console.log("ERROR IN LOCATION VALUES - USING DEFAULT")
                     getOutfit.call(this, "Ottawa", "CAN");   
@@ -138,6 +134,49 @@ const handlers = {
     'AMAZON.StopIntent' : function(){
         this.emit(":tell", "GoodBye")
     },
+    'deleteItemIntent' : function(){
+        if(this.event.request.dialogState != "COMPLETED"){
+            return this.emit(":delegate");
+        }else{
+            const {slots} = this.event.request.intent; 
+            const { userId } = this.event.session.user;
+            const color = slots.color.value;
+            const brand = slots.brand.value;
+            const type = slots.type.value;
+
+            var params = {
+                TableName : tableName,
+                FilterExpression : 'clothingType = :type AND userId = :Id AND userId = :Id AND color = :color AND brand = :brand',
+                ExpressionAttributeValues : {':type' : type, ":Id" : userId, ':color' : color, ':brand' : brand}
+            }
+
+            dbScan(params)
+            .then((data) => {
+                console.log(data.Items);
+                item = data.Items[0];
+
+                var deleteParams = {
+                    Key : {
+                        itemId : item.itemId,
+                        clothingType : item.clothingType
+                    },
+                    TableName : tableName,
+                }
+
+                dbDelete(deleteParams)
+                .then((data) => {
+                    console.log(data)
+                    this.emit(":tell", "Item deleted")
+                })
+                .catch((err) => {
+                    console.log(err);
+                })
+            })
+            .catch((err) => {
+                console.log(err)
+            })
+        }
+    },
     'emptyDresserIntent' : function(){
 
         if(this.event.request.dialogState != "COMPLETED"){
@@ -156,33 +195,28 @@ const handlers = {
             .then((data) => {
                 console.log(data);
                 data.Items.forEach((item) => {
-                    
                     var deleteParams = {
                         Key : {
                             itemId : item.itemId,
                             clothingType : item.clothingType
-                            
-                            
                         },
                         TableName : tableName,
                     }
-
                     dbDelete(deleteParams)
+                    .then((data) => {
+                        console.log(data);
+                        this.emit(":tell", "Your dresser is now empty")
+                    })
                     .catch((err) => {
                         console.log(err);
                     })
-                    
                 })
             })
-            .then(() => {
-                this.emit(":tell", "Your dresser is now empty")
-            })
+            
             .catch((err) => {
                 console.log(err);
             })
         }
-        
-        
     }
 }
 
@@ -225,13 +259,11 @@ function getOutfit(city, country){
             if(error){
                 console.log(error);
             }
-            console.log(body);
+
             var res = JSON.parse(body);
-            console.log(res.main.temp);
             
             var temperatureCelsius = Math.round((res.main.temp - 273.15) * 100) / 100
             
-            console.log(temperatureCelsius); 
             var isCold = temperatureCelsius<10 ? true : false;
 
             
@@ -267,11 +299,6 @@ function getOutfit(city, country){
             }
 
             Promise.all([dbScan(getRandomShirtParams), dbScan(getRandomPantsParams), dbScan(getRandomHatParams), dbScan(getRandomSweaterParams), dbScan(getRandomShortsParams)]).then((values => {
-                console.log(values[0]);
-                console.log(values[1]);
-                console.log(values[2]);
-                console.log(values[3]);
-                console.log(values[4]);
                 
                 var shirts = values[0].Items;
                 var pants = values[1].Items;
@@ -281,16 +308,19 @@ function getOutfit(city, country){
                 
                 var selectedClothing = [];
 
+                console.log(shirts);
+                console.log(pants);
+                console.log(hats);
+                console.log(sweaters);
+                console.log(shorts);
+                
                 //Select random shirt to wear
                 if(shirts.length > 0){ 
-                    var randIndex = Math.floor(Math.random() * (shirts.length + 1));
-                    selectedClothing.push(shirts[randIndex]);
-                    console.log(shirts[randIndex]);
+                    selectedClothing.push(pickRandom(shirts));
                 }else{
                     console.log("no shirts")
                 }
                 
-                console.log(selectedClothing)
                 //Select random bottoms
                 pickBottom.call(this, shorts, pants, selectedClothing, isCold);
 
@@ -304,8 +334,6 @@ function getOutfit(city, country){
                     selectedClothing.push(pickRandom(sweaters))
                 }
 
-                
-                
                 var outputSpeech = `The temperature is ${temperatureCelsius} degrees in ${city}. <break time="1s"/>Your outfit is: `
                 
                 console.log(selectedClothing);
