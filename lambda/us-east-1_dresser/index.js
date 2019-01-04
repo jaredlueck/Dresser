@@ -143,6 +143,7 @@ const handlers = {
             const color = slots.color.value;
             const brand = slots.brand.value;
             const type = slots.type.value;
+            console.log(slots);
 
             var params = {
                 TableName : tableName,
@@ -153,24 +154,27 @@ const handlers = {
             dbScan(params)
             .then((data) => {
                 console.log(data.Items);
-                item = data.Items[0];
+                if(data.Items.length > 0){
+                    item = data.Items[0];
+                    var deleteParams = {
+                        Key : {
+                            itemId : item.itemId,
+                            clothingType : item.clothingType
+                        },
+                        TableName : tableName,
+                    }
 
-                var deleteParams = {
-                    Key : {
-                        itemId : item.itemId,
-                        clothingType : item.clothingType
-                    },
-                    TableName : tableName,
+                    dbDelete(deleteParams)
+                    .then((data) => {
+                        console.log(data)
+                        this.emit(":tell", "Item deleted")
+                    })
+                    .catch((err) => {
+                        console.log(err);
+                    })
+                }else{
+                    this.emit(":tell", "Could not find this clothing item in your dresser");
                 }
-
-                dbDelete(deleteParams)
-                .then((data) => {
-                    console.log(data)
-                    this.emit(":tell", "Item deleted")
-                })
-                .catch((err) => {
-                    console.log(err);
-                })
             })
             .catch((err) => {
                 console.log(err)
